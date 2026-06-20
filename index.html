@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fractal Quest — La Llave Matemática</title>
+<style>
+  :root{
+    --bg-deep:#0b1622;
+    --bg-mid:#10243a;
+    --leaf:#34d399;
+    --leaf-dim:#1f6b52;
+    --gold:#e8c468;
+    --coral:#ef6f6c;
+    --ink:#eaf2f5;
+    --ink-dim:#9fb4c2;
+    --panel:#0e1f30ee;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; height:100%; height:100dvh;
+    background:radial-gradient(ellipse at 50% -10%, var(--bg-mid), var(--bg-deep) 65%);
+    color:var(--ink);
+    font-family:'Courier New', ui-monospace, monospace;
+    overflow:hidden;
+    overscroll-behavior:none;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+  }
+  #wrap{
+    display:flex; flex-direction:column; align-items:center;
+    height:100%; height:100dvh; padding:8px; gap:6px;
+    max-width:980px; margin:0 auto;
+  }
+  h1{
+    font-family: Georgia, 'Times New Roman', serif;
+    font-weight:700; letter-spacing:1px;
+    font-size:clamp(15px,4.2vw,22px); margin:2px 0 0 0; color:var(--gold);
+    text-shadow:0 0 18px rgba(232,196,104,.35);
+    text-align:center;
+  }
+  .sub{ color:var(--ink-dim); font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-bottom:0; }
+  #stageOuter{
+    flex:1 1 auto; width:100%; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #stage{
+    position:relative;
+    width:100%; max-width:900px;
+    height:100%; max-height:min(560px, 60vh);
+    aspect-ratio: 900/560;
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 0 0 1px #1d3650, 0 20px 60px -10px #000a;
+    touch-action:none;
+  }
+  canvas{display:block; width:100%; height:100%; background:transparent;}
+  #hud{
+    position:absolute; top:8px; left:8px; right:8px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    font-size:clamp(10px,2.4vw,13px); pointer-events:none; gap:6px;
+  }
+  .pill{
+    background:var(--panel); border:1px solid #2a4763; border-radius:8px;
+    padding:5px 9px; backdrop-filter: blur(2px);
+  }
+  #keysWrap{display:flex; gap:4px;}
+  .keyicon{
+    width:14px; height:14px; border-radius:50%;
+    border:1.5px solid var(--gold); display:inline-block; margin-right:2px;
+  }
+  .keyicon.on{ background:var(--gold); box-shadow:0 0 8px var(--gold); }
+  #levelTag{ color:var(--leaf); font-weight:bold; letter-spacing:.5px; }
+  #scoreTag{ color:var(--gold); }
+
+  /* ---------- Controles táctiles ---------- */
+  #touchControls{
+    display:none;
+    width:100%; max-width:900px;
+    justify-content:space-between; align-items:center;
+    padding:4px 4px 2px;
+    flex-shrink:0;
+  }
+  body.is-touch #touchControls{ display:flex; }
+  body.is-touch #note{ display:none; }
+
+  .dpad{
+    display:grid;
+    grid-template-columns:46px 46px 46px;
+    grid-template-rows:46px 46px 46px;
+    gap:4px;
+  }
+  .dpad button{
+    background:var(--panel); border:1px solid #2a4763; border-radius:8px;
+    color:var(--ink); font-size:18px; display:flex; align-items:center; justify-content:center;
+    padding:0; touch-action:none;
+  }
+  .dpad button:active, .dpad button.pressed{ background:#1c3c5c; border-color:var(--leaf); }
+  #dpadUp{grid-column:2; grid-row:1;}
+  #dpadLeft{grid-column:1; grid-row:2;}
+  #dpadRight{grid-column:3; grid-row:2;}
+  #dpadDown{grid-column:2; grid-row:3;}
+
+  #soundToggle{
+    background:var(--panel); border:1px solid #2a4763; border-radius:50%;
+    width:46px; height:46px; color:var(--ink); font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  #overlay{
+    position:absolute; inset:0; display:none;
+    background:#06101bcc; backdrop-filter: blur(3px);
+    align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    padding:14px; text-align:center; overflow-y:auto;
+  }
+  #overlay.show{display:flex;}
+  .card{
+    background:var(--panel); border:1px solid #2a4763; border-radius:12px;
+    padding:18px 18px; max-width:520px; width:100%; box-shadow:0 10px 40px #000c;
+    max-height:100%; overflow-y:auto;
+  }
+  .card h2{ margin:0 0 8px 0; color:var(--gold); font-family:Georgia,serif; font-size:clamp(16px,4vw,20px);}
+  .card p{ color:var(--ink-dim); line-height:1.5; font-size:clamp(12px,3vw,13.5px); margin:6px 0 14px;}
+  .opts{ display:flex; flex-direction:column; gap:8px; }
+  .opt{
+    background:#102844; border:1px solid #2a4763; color:var(--ink);
+    padding:10px 12px; border-radius:8px; cursor:pointer;
+    font-family:inherit; font-size:clamp(12px,3vw,13.5px); text-align:left;
+    transition:transform .1s, background .15s, border-color .15s;
+  }
+  .opt:hover{ background:#163a5e; border-color:var(--leaf); transform:translateX(3px); }
+  .opt.correct{ background:#1f6b52 !important; border-color:var(--leaf) !important; }
+  .opt.wrong{ background:#5c2828 !important; border-color:var(--coral) !important; }
+  .btn{
+    background:var(--leaf); color:#06281d; border:none; border-radius:8px;
+    padding:11px 22px; font-weight:bold; cursor:pointer; font-family:inherit;
+    font-size:13.5px; letter-spacing:.5px; touch-action:manipulation;
+  }
+  .btn:hover{filter:brightness(1.1);}
+  .btn.gold{ background:var(--gold); color:#2b1f04;}
+  #feedback{ font-size:13px; min-height:18px; }
+  #note{
+    color:var(--ink-dim); font-size:11px; text-align:center; max-width:760px; line-height:1.4;
+    flex-shrink:0;
+  }
+  #musicRow{ display:flex; gap:4px; justify-content:center; margin-top:4px;}
+  .note-dot{ width:9px; height:9px; border-radius:50%; background:#2a4763; }
+  .note-dot.lit{ background:var(--coral); box-shadow:0 0 8px var(--coral);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="sub">Una aventura matemática</div>
+  <h1>🌿 FRACTAL QUEST — La Llave Matemática</h1>
+
+  <div id="stageOuter">
+    <div id="stage">
+      <canvas id="game" width="900" height="560"></canvas>
+      <div id="hud">
+        <div class="pill">
+          <div id="levelTag">Nivel 1 · Bosque Fractal</div>
+          <div style="color:var(--ink-dim); font-size:11px; margin-top:2px;">Concepto: Autosimilitud</div>
+        </div>
+        <div class="pill" style="text-align:right;">
+          <div id="scoreTag">Puntos: 0</div>
+          <div id="keysWrap" style="margin-top:4px;"></div>
+        </div>
+      </div>
+
+      <div id="overlay" class="show">
+        <div class="card" id="card">
+          <h2>🌿 Fractal Quest</h2>
+          <p>Un explorador debe atravesar paisajes fractales para encontrar la Llave Matemática
+          que abre el Portal del Conocimiento. Descubre cómo la matemática vive en la naturaleza,
+          la música y la programación.</p>
+          <div style="text-align:center;">
+            <button class="btn gold" id="startGameBtn">▶ Iniciar Juego</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="touchControls">
+    <button id="soundToggle" aria-label="Sonido">🔊</button>
+    <div class="dpad" aria-label="Controles de movimiento">
+      <button id="dpadUp" aria-label="Arriba">▲</button>
+      <button id="dpadLeft" aria-label="Izquierda">◀</button>
+      <button id="dpadRight" aria-label="Derecha">▶</button>
+      <button id="dpadDown" aria-label="Abajo">▼</button>
+    </div>
+  </div>
+
+  <div id="note">
+    Mueve al explorador con las <b>flechas del teclado</b> (o el D-pad en pantallas táctiles). Toca los cristales
+    dorados (🔑) para responder preguntas sobre fractales y ganar Llaves Matemáticas. Evita las rocas móviles.
+    Reúne 5 llaves para abrir el Portal del Conocimiento.
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   FRACTAL QUEST
+   Juego educativo HTML5 Canvas — fractales, música y código
+   ========================================================= */
+
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+const overlay = document.getElementById('overlay');
+const card = document.getElementById('card');
+const levelTag = document.getElementById('levelTag');
+const scoreTag = document.getElementById('scoreTag');
+const keysWrap = document.getElementById('keysWrap');
+const soundToggle = document.getElementById('soundToggle');
+
+const W = cv.width, H = cv.height;
+
+// ---------- DETECCION DE DISPOSITIVO TACTIL ----------
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 ||
+                       window.matchMedia('(pointer: coarse)').matches;
+if(isTouchDevice){ document.body.classList.add('is-touch'); }
+
+// evita gestos de zoom/scroll dentro del juego en celulares
+['touchstart','touchmove'].forEach(evt=>{
+  document.getElementById('stage').addEventListener(evt, e=>e.preventDefault(), {passive:false});
+});
+
+// ---------- SONIDO ----------
+let soundOn = true;
+soundToggle.addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  soundToggle.textContent = soundOn ? '🔊' : '🔇';
+});
+
+// ---------- ESTADO GLOBAL ----------
+let score = 0;
+let keysCollected = 0;
+const TOTAL_KEYS = 5;
+let levelIndex = 0;
+let paused = false; // true durante preguntas / mensajes
+let gameWon = false;
+
+// Jugador (el Explorador)
+const player = {
+  x: 60, y: H/2, r: 14,
+  speed: 3.2,
+  vx:0, vy:0,
+  facing: 1,
+  bob: 0
+};
+
+const keysDown = {ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false};
+
+window.addEventListener('keydown', e=>{
+  if(e.key in keysDown){ keysDown[e.key]=true; e.preventDefault(); }
+});
+window.addEventListener('keyup', e=>{
+  if(e.key in keysDown){ keysDown[e.key]=false; e.preventDefault(); }
+});
+
+// ---------- CONTROLES TACTILES (D-pad) ----------
+function bindDpadButton(id, key){
+  const btn = document.getElementById(id);
+  const press = (e)=>{ e.preventDefault(); keysDown[key]=true; btn.classList.add('pressed'); resumeAudio(); };
+  const release = (e)=>{ if(e) e.preventDefault(); keysDown[key]=false; btn.classList.remove('pressed'); };
+  btn.addEventListener('pointerdown', press);
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointerleave', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('touchstart', press, {passive:false});
+  btn.addEventListener('touchend', release, {passive:false});
+}
+bindDpadButton('dpadUp','ArrowUp');
+bindDpadButton('dpadDown','ArrowDown');
+bindDpadButton('dpadLeft','ArrowLeft');
+bindDpadButton('dpadRight','ArrowRight');
+
+// ---------- UTIL: ARBOL FRACTAL (recursivo, autosimilitud) ----------
+function drawFractalTree(x, y, len, angle, depth, baseHue, sway){
+  if(depth===0) return;
+  const x2 = x + Math.cos(angle) * len;
+  const y2 = y + Math.sin(angle) * len;
+  ctx.strokeStyle = `hsl(${baseHue}, 35%, ${18+depth*5}%)`;
+  ctx.lineWidth = depth*1.15;
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x2,y2);
+  ctx.stroke();
+  if(depth <= 2){
+    ctx.fillStyle = `hsla(${150+depth*10}, 60%, ${45+depth*5}%, 0.85)`;
+    ctx.beginPath();
+    ctx.arc(x2,y2, 3+depth, 0, Math.PI*2);
+    ctx.fill();
+  }
+  const a1 = angle - 0.5 + sway;
+  const a2 = angle + 0.5 - sway;
+  drawFractalTree(x2,y2, len*0.74, a1, depth-1, baseHue, sway);
+  drawFractalTree(x2,y2, len*0.74, a2, depth-1, baseHue, sway);
+}
+
+// ---------- UTIL: MONTAÑAS FRACTALES (desplazamiento medio) ----------
+function midpointMountains(seedArr, roughness){
+  let pts = seedArr.slice();
+  for(let iter=0; iter<7; iter++){
+    const next = [pts[0]];
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i], b=pts[i+1];
+      const mx=(a.x+b.x)/2;
+      const range = Math.abs(b.x-a.x) * roughness;
+      const my=(a.y+b.y)/2 + (Math.random()-0.5)*range;
+      next.push({x:mx,y:my});
+      next.push(b);
+    }
+    pts = next;
+  }
+  return pts;
+}
+let mountainLayers = null;
+function buildMountains(){
+  mountainLayers = [
+    midpointMountains([{x:0,y:330},{x:450,y:230},{x:900,y:330}], 0.55),
+    midpointMountains([{x:0,y:400},{x:450,y:300},{x:900,y:420}], 0.45),
+    midpointMountains([{x:0,y:460},{x:450,y:380},{x:900,y:470}], 0.35),
+  ];
+}
+
+// ---------- UTIL: TRIANGULO DE SIERPINSKI ----------
+function sierpinski(ctx, x1,y1,x2,y2,x3,y3, depth){
+  if(depth===0){
+    ctx.beginPath();
+    ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.closePath();
+    ctx.fillStyle = `hsla(${265+depth*4},55%,55%,0.5)`;
+    ctx.fill();
+    return;
+  }
+  const x12=(x1+x2)/2, y12=(y1+y2)/2;
+  const x23=(x2+x3)/2, y23=(y2+y3)/2;
+  const x31=(x3+x1)/2, y31=(y3+y1)/2;
+  sierpinski(ctx,x1,y1,x12,y12,x31,y31,depth-1);
+  sierpinski(ctx,x12,y12,x2,y2,x23,y23,depth-1);
+  sierpinski(ctx,x31,y31,x23,y23,x3,y3,depth-1);
+}
+
+// ---------- UTIL: COPO DE KOCH ----------
+function kochPoints(x1,y1,x2,y2,depth){
+  if(depth===0) return [{x:x1,y:y1},{x:x2,y:y2}];
+  const dx=(x2-x1)/3, dy=(y2-y1)/3;
+  const xA=x1+dx, yA=y1+dy;
+  const xB=x1+2*dx, yB=y1+2*dy;
+  const angle = Math.atan2(dy,dx) - Math.PI/3;
+  const dist = Math.hypot(dx,dy);
+  const xP = xA + Math.cos(angle)*dist;
+  const yP = yA + Math.sin(angle)*dist;
+  return [
+    ...kochPoints(x1,y1,xA,yA,depth-1).slice(0,-1),
+    ...kochPoints(xA,yA,xP,yP,depth-1).slice(0,-1),
+    ...kochPoints(xP,yP,xB,yB,depth-1).slice(0,-1),
+    ...kochPoints(xB,yB,x2,y2,depth-1)
+  ];
+}
+
+// ---------- NIVELES ----------
+const LEVELS = [
+  {
+    name:"Bosque Fractal", concept:"Autosimilitud",
+    intro:"Un árbol fractal repite la misma rama una y otra vez, cada vez más pequeña. Eso es autosimilitud: el patrón se parece a sí mismo en distintas escalas — igual que un helecho real.",
+    bg:"forest"
+  },
+  {
+    name:"Montaña Fractal", concept:"Escala",
+    intro:"Las montañas se generan desplazando el punto medio de cada segmento una y otra vez. A cada nueva escala aparecen más detalles, pero la silueta general sigue siendo reconocible.",
+    bg:"mountain"
+  },
+  {
+    name:"Laberinto de Sierpinski", concept:"Iteración",
+    intro:"El Triángulo de Sierpinski nace de repetir (iterar) una regla simple: dividir un triángulo en tres y quitar el del medio, una y otra vez.",
+    bg:"sierpinski"
+  },
+  {
+    name:"Música Fractal", concept:"Patrones",
+    intro:"Hasta la música puede tener estructura fractal: una melodía corta se repite y transforma en distintas escalas de tiempo, como en DO-RE-MI · DO-RE-MI · DO-RE-FA.",
+    bg:"koch"
+  },
+];
+
+// Preguntas (una por cristal recogido)
+const QUESTIONS = [
+  {
+    q:"¿Qué característica define a un fractal?",
+    opts:["Autosimilitud: se repite a diferentes escalas","Es completamente aleatorio y sin reglas","Solo existe en dibujos, nunca en la naturaleza"],
+    correct:0
+  },
+  {
+    q:"En un árbol fractal programado con recursividad, ¿qué hace cada rama?",
+    opts:["Se borra a sí misma","Genera ramas más pequeñas siguiendo la misma regla","Cambia de color al azar sin patrón"],
+    correct:1
+  },
+  {
+    q:"¿Dónde podemos encontrar patrones fractales en la naturaleza?",
+    opts:["Solo en las pantallas de computadora","En helechos, montañas, costas y nubes","En ningún lugar, son solo matemática pura"],
+    correct:1
+  },
+  {
+    q:"El Triángulo de Sierpinski se construye repitiendo una regla. ¿Cómo se llama ese proceso de repetir pasos?",
+    opts:["Simetría","Aleatoriedad","Iteración"],
+    correct:2
+  },
+  {
+    q:"Una melodía que se repite variando en distintas escalas de tiempo, ¿qué idea fractal refleja?",
+    opts:["Patrones que se repiten (autosimilitud sonora)","Que la música no tiene estructura","Que el sonido siempre es caótico"],
+    correct:0
+  }
+];
+
+// ---------- OBSTACULOS Y CRISTALES por nivel ----------
+let obstacles = [];
+let crystal = null; // un cristal/llave por vez
+
+function setupLevel(i){
+  levelIndex = i;
+  const lvl = LEVELS[i];
+  levelTag.textContent = `Nivel ${i+1} · ${lvl.name}`;
+  levelTag.nextElementSibling.textContent = `Concepto: ${lvl.concept}`;
+  player.x = 60; player.y = H/2;
+
+  obstacles = [];
+  const n = 3 + i;
+  for(let k=0;k<n;k++){
+    obstacles.push({
+      x: 220 + k*150 + Math.random()*40,
+      y: 80 + Math.random()*(H-160),
+      r: 16 + Math.random()*10,
+      vy: (Math.random()<0.5?1:-1) * (0.6+Math.random()*0.8),
+      vx: (Math.random()<0.5?1:-1) * (0.3+Math.random()*0.5),
+      type: i===2 ? "rock" : (i===0 ? "branch" : "rock")
+    });
+  }
+
+  spawnCrystal();
+  if(i===1) buildMountains();
+  showIntro(lvl);
+}
+
+function spawnCrystal(){
+  crystal = {
+    x: W - 110 - Math.random()*60,
+    y: 90 + Math.random()*(H-180),
+    r: 13,
+    t:0
+  };
+}
+
+// ---------- OVERLAY (mensajes y preguntas) ----------
+function showIntro(lvl){
+  paused = true;
+  card.innerHTML = `
+    <h2>${lvl.name}</h2>
+    <p>${lvl.intro}</p>
+    <div style="text-align:center;">
+      <button class="btn" id="startLevelBtn">Comenzar →</button>
+    </div>
+  `;
+  overlay.classList.add('show');
+  document.getElementById('startLevelBtn').onclick = ()=>{
+    overlay.classList.remove('show');
+    paused = false;
+  };
+}
+
+function askQuestion(){
+  paused = true;
+  const qIdx = keysCollected % QUESTIONS.length;
+  const Q = QUESTIONS[qIdx];
+  card.innerHTML = `
+    <h2>🔑 Cristal Matemático</h2>
+    <p>${Q.q}</p>
+    <div class="opts">
+      ${Q.opts.map((o,idx)=>`<button class="opt" data-idx="${idx}">${String.fromCharCode(65+idx)}) ${o}</button>`).join('')}
+    </div>
+    <div id="feedback"></div>
+  `;
+  overlay.classList.add('show');
+  const fb = card.querySelector('#feedback');
+  const btns = card.querySelectorAll('.opt');
+  btns.forEach(btn=>{
+    btn.onclick = ()=>{
+      btns.forEach(b=>b.onclick=null);
+      const idx = parseInt(btn.dataset.idx);
+      if(idx === Q.correct){
+        btn.classList.add('correct');
+        fb.textContent = "¡Correcto! +20 puntos, +1 Llave Matemática 🔑";
+        fb.style.color = "var(--leaf)";
+        score += 20;
+        keysCollected++;
+        updateHUD();
+        playChime(true);
+      } else {
+        btn.classList.add('wrong');
+        btns[Q.correct].classList.add('correct');
+        fb.textContent = "Casi. La respuesta correcta queda marcada en verde. +5 puntos por intentarlo.";
+        fb.style.color = "var(--coral)";
+        score += 5;
+        updateHUD();
+        playChime(false);
+      }
+      setTimeout(()=>{
+        overlay.classList.remove('show');
+        paused = false;
+        if(keysCollected >= TOTAL_KEYS){
+          showVictory();
+        } else {
+          spawnCrystal();
+        }
+      }, 1600);
+    };
+  });
+}
+
+function showVictory(){
+  paused = true;
+  gameWon = true;
+  card.innerHTML = `
+    <h2>🌌 Portal del Conocimiento</h2>
+    <p>Has reunido las 5 Llaves Matemáticas. El portal se abre con un brillo fractal...</p>
+    <p style="color:var(--gold); font-weight:bold;">
+      "Has descubierto que la matemática está presente en la naturaleza, el arte,
+      la música y la tecnología."
+    </p>
+    <div style="text-align:center;">
+      <button class="btn gold" id="restartBtn">Jugar de nuevo</button>
+    </div>
+  `;
+  overlay.classList.add('show');
+  document.getElementById('restartBtn').onclick = ()=>{
+    score=0; keysCollected=0; gameWon=false;
+    overlay.classList.remove('show');
+    setupLevel(0);
+  };
+}
+
+function nextLevel(){
+  if(levelIndex < LEVELS.length-1){
+    setupLevel(levelIndex+1);
+  } else {
+    setupLevel(0); // ciclo del bosque mientras junta llaves restantes
+  }
+}
+
+function updateHUD(){
+  scoreTag.textContent = `Puntos: ${score}`;
+  keysWrap.innerHTML = '';
+  for(let i=0;i<TOTAL_KEYS;i++){
+    const d = document.createElement('span');
+    d.className = 'keyicon' + (i < keysCollected ? ' on' : '');
+    keysWrap.appendChild(d);
+  }
+}
+
+// ---------- FONDO: secuencia musical fractal (nivel 4) ----------
+const NOTE_SEQ = ["DO","RE","MI","DO","RE","MI","DO","RE","FA","DO","RE","MI"];
+const FREQ = {DO:261.6, RE:293.7, MI:329.6, FA:349.2};
+let audioCtx = null;
+let noteIdx = 0;
+let noteTimer = 0;
+
+function resumeAudio(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }catch(e){}
+}
+window.addEventListener('pointerdown', resumeAudio, {once:false});
+
+function playNote(freq){
+  if(!soundOn) return;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.value = 0.04;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.35);
+    o.stop(audioCtx.currentTime + 0.35);
+  }catch(e){}
+}
+
+function playChime(success){
+  if(!soundOn) return;
+  const freqs = success ? [523.3, 659.3, 784.0] : [392.0, 311.1];
+  freqs.forEach((f,i)=>setTimeout(()=>playNote(f), i*90));
+}
+
+// ---------- LOOP DE JUEGO ----------
+let animTick = 0;
+
+function update(){
+  if(paused) return;
+  animTick++;
+
+  // movimiento jugador
+  let dx=0, dy=0;
+  if(keysDown.ArrowRight){dx+=1; player.facing=1;}
+  if(keysDown.ArrowLeft){dx-=1; player.facing=-1;}
+  if(keysDown.ArrowUp){dy-=1;}
+  if(keysDown.ArrowDown){dy+=1;}
+  if(dx!==0 && dy!==0){ dx*=0.7071; dy*=0.7071; } // normaliza diagonal
+  player.x = Math.max(player.r, Math.min(W-player.r, player.x+dx*player.speed));
+  player.y = Math.max(player.r+40, Math.min(H-player.r-10, player.y+dy*player.speed));
+  player.bob = Math.sin(animTick*0.2) * (dx||dy ? 3:1);
+
+  // obstaculos
+  for(const o of obstacles){
+    o.y += o.vy;
+    o.x += o.vx*0.3;
+    if(o.y < 60 || o.y > H-40) o.vy*=-1;
+    if(o.x < 150 || o.x > W-60) o.vx*=-1;
+    const ddx = player.x-o.x, ddy = player.y-o.y;
+    const d = Math.hypot(ddx,ddy);
+    const minDist = player.r + o.r;
+    if(d < minDist && d > 0){
+      const overlap = minDist - d;
+      const nx = ddx/d, ny = ddy/d;
+      player.x = Math.max(player.r, Math.min(W-player.r, player.x + nx*overlap));
+      player.y = Math.max(player.r+40, Math.min(H-player.r-10, player.y + ny*overlap));
+      if(animTick % 12 === 0){
+        score = Math.max(0, score-1);
+        updateHUD();
+      }
+    }
+  }
+
+  // cristal
+  if(crystal){
+    crystal.t += 0.05;
+    const d = Math.hypot(player.x-crystal.x, player.y-crystal.y);
+    if(d < player.r + crystal.r){
+      crystal = null;
+      askQuestion();
+    }
+  }
+
+  // musica de fondo en nivel 4
+  if(levelIndex===3){
+    noteTimer++;
+    if(noteTimer > 28){
+      noteTimer = 0;
+      playNote(FREQ[NOTE_SEQ[noteIdx % NOTE_SEQ.length]]);
+      noteIdx++;
+    }
+  }
+
+  // avanzar de nivel si el jugador llega al borde derecho (y aun no gano)
+  if(player.x > W - player.r - 6 && !crystal && !gameWon){
+    nextLevel();
+  }
+}
+
+// ---------- DIBUJO ----------
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const lvl = LEVELS[levelIndex];
+
+  // cielo
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0, "#0a1726");
+  sky.addColorStop(1, "#16314a");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0,0,W,H);
+
+  // estrellas
+  ctx.fillStyle = "#ffffff22";
+  for(let i=0;i<40;i++){
+    const sx = (i*97)%W, sy=(i*53)%240;
+    ctx.fillRect(sx, sy, 1.5,1.5);
+  }
+
+  if(lvl.bg === "forest") drawForestBg();
+  else if(lvl.bg === "mountain") drawMountainBg();
+  else if(lvl.bg === "sierpinski") drawSierpinskiBg();
+  else if(lvl.bg === "koch") drawKochBg();
+
+  // suelo
+  ctx.fillStyle = "#0c1e1480";
+  ctx.fillRect(0, H-34, W, 34);
+
+  // obstaculos
+  for(const o of obstacles){
+    ctx.beginPath();
+    if(o.type==="rock"){
+      ctx.fillStyle = "#5a4632";
+      ctx.strokeStyle = "#2c2014";
+    } else {
+      ctx.fillStyle = "#3f6b3a";
+      ctx.strokeStyle = "#21401e";
+    }
+    ctx.arc(o.x,o.y,o.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.lineWidth=2; ctx.stroke();
+  }
+
+  // cristal/llave
+  if(crystal){
+    const bob = Math.sin(crystal.t*2)*4;
+    ctx.save();
+    ctx.translate(crystal.x, crystal.y+bob);
+    ctx.rotate(crystal.t*1.5);
+    ctx.fillStyle = "#e8c468";
+    ctx.shadowColor = "#e8c468";
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    for(let i=0;i<6;i++){
+      const a = i/6*Math.PI*2;
+      const r = i%2===0 ? crystal.r : crystal.r*0.5;
+      ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle="#e8c468";
+    ctx.font="11px monospace";
+    ctx.textAlign="center";
+    ctx.fillText("🔑", crystal.x, crystal.y+bob-22);
+  }
+
+  // jugador (explorador)
+  drawPlayer();
+
+  // titulo nivel flotante musical
+  if(levelIndex===3){
+    drawMusicNotes();
+  }
+}
+
+function drawPlayer(){
+  const {x,y,r,bob,facing} = player;
+  ctx.save();
+  ctx.translate(x,y+bob);
+  // sombra
+  ctx.fillStyle="#00000040";
+  ctx.beginPath();
+  ctx.ellipse(0, r+6, r*0.8, 4, 0,0,Math.PI*2);
+  ctx.fill();
+  // cuerpo
+  ctx.fillStyle="#e0a35c";
+  ctx.beginPath();
+  ctx.arc(0,0,r,0,Math.PI*2);
+  ctx.fill();
+  // mochila
+  ctx.fillStyle="#3f6b3a";
+  ctx.fillRect(-r-3*facing, -r*0.4, 5*facing, r*0.9);
+  // sombrero explorador
+  ctx.fillStyle="#8a5a2b";
+  ctx.beginPath();
+  ctx.ellipse(0,-r*0.7, r*0.95, r*0.35, 0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#6b4521";
+  ctx.beginPath();
+  ctx.arc(0,-r*0.95, r*0.55,0,Math.PI*2);
+  ctx.fill();
+  // ojos
+  ctx.fillStyle="#1a1a1a";
+  ctx.beginPath();
+  ctx.arc(3*facing, -2, 1.6, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawForestBg(){
+  for(let i=0;i<3;i++){
+    const baseX = 90 + i*330;
+    const sway = Math.sin(animTick*0.01 + i)*0.04;
+    ctx.save();
+    drawFractalTree(baseX, H-34, 75, -Math.PI/2, 9, 140+i*10, sway);
+    ctx.restore();
+  }
+}
+
+function drawMountainBg(){
+  if(!mountainLayers) buildMountains();
+  const colors = ["#1c2f44","#243d57","#2c4a68"];
+  mountainLayers.forEach((layer, idx)=>{
+    ctx.beginPath();
+    ctx.moveTo(0,H-34);
+    layer.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.lineTo(900,H-34);
+    ctx.closePath();
+    ctx.fillStyle = colors[idx];
+    ctx.fill();
+  });
+}
+
+function drawSierpinskiBg(){
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  sierpinski(ctx, 60,H-40, W/2+30, 60, W-60, H-40, 5);
+  ctx.restore();
+}
+
+function drawKochBg(){
+  const depth=3;
+  const pts = kochPoints(80,260, W-80,260, depth);
+  ctx.strokeStyle = "#ef6f6c";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  pts.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.stroke();
+
+  const pts2 = kochPoints(80,330, W-80,330, depth);
+  ctx.strokeStyle = "#34d399";
+  ctx.beginPath();
+  pts2.forEach((p,i)=> i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.stroke();
+}
+
+function drawMusicNotes(){
+  ctx.save();
+  ctx.font = "13px monospace";
+  ctx.fillStyle = "#e8c46899";
+  ctx.textAlign="center";
+  ctx.fillText("♪ DO–RE–MI · DO–RE–MI · DO–RE–FA · DO–RE–MI ♪", W/2, 40);
+  // resaltar nota actual
+  const cur = NOTE_SEQ[(noteIdx-1+NOTE_SEQ.length) % NOTE_SEQ.length];
+  ctx.restore();
+}
+
+// ---------- LOOP PRINCIPAL ----------
+let wasPausedByVisibility = false;
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    wasPausedByVisibility = !paused;
+    paused = true;
+  } else if(wasPausedByVisibility){
+    paused = false;
+    wasPausedByVisibility = false;
+  }
+});
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+updateHUD();
+
+document.getElementById('startGameBtn').addEventListener('click', ()=>{
+  resumeAudio();
+  // En móviles, intenta pantalla completa para mejor inmersión (silencioso si falla)
+  const stageEl = document.getElementById('stage');
+  if(isTouchDevice && stageEl.requestFullscreen){
+    stageEl.requestFullscreen().catch(()=>{});
+  }
+  overlay.classList.remove('show');
+  setupLevel(0);
+  loop();
+});
+</script>
+</body>
+</html>
